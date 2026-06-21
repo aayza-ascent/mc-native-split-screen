@@ -4,6 +4,7 @@ import io.ascent.nsplit.NSplit;
 import io.ascent.nsplit.controller.compat.ControlifyCompat;
 import net.fabricmc.loader.api.FabricLoader;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -54,5 +55,20 @@ public final class ControllerAssigner {
 			NSplit.LOG.warn("[host] no unassigned controller connected — player will spawn without a pad.");
 		}
 		return uid;
+	}
+
+	/** UID of the host's own active controller, if any (excluded from join detection). */
+	public static Optional<String> currentControllerUid() {
+		return available() ? ControlifyCompat.currentControllerUid() : Optional.empty();
+	}
+
+	/** UIDs (not in {@code excluded}) that pressed Start this tick — the join gesture. */
+	public static List<String> detectJoinPresses(Set<String> excluded) {
+		return available() ? ControlifyCompat.startJustPressed(excluded) : List.of();
+	}
+
+	/** Human-readable controller name for {@code uid}, or the uid if unknown/absent. */
+	public static String nameOf(String uid) {
+		return available() ? ControlifyCompat.nameOf(uid) : uid;
 	}
 }

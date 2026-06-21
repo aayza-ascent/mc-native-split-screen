@@ -2,9 +2,13 @@ package io.ascent.nsplit.controller.compat;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.controller.ControllerEntity;
+import dev.isxander.controlify.controller.input.ControllerStateView;
+import dev.isxander.controlify.controller.input.GamepadInputs;
+import dev.isxander.controlify.controller.input.InputComponent;
 import dev.isxander.controlify.controllermanager.ControllerManager;
 import io.ascent.nsplit.NSplit;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -76,6 +80,42 @@ public final class ControlifyCompat {
 		} catch (Throwable t) {
 			NSplit.LOG.warn("[controlify] could not enable out-of-focus input: {}", t.toString());
 		}
+	}
+
+	/** UID of Controlify's currently-active controller (the host's own pad), if any. */
+	public static Optional<String> currentControllerUid() {
+		try {
+			return Controlify.instance().getCurrentController().map(ControllerEntity::uid);
+		} catch (Throwable t) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * UIDs of connected controllers (excluding {@code excluded}) whose START button went down
+	 * this tick (rising edge) — the "press Start to join" gesture. Compares Controlify's
+	 * current vs previous state view.
+	 */
+	public static List<String> startJustPressed(Set<String> excluded) {
+		List<String> out = new ArrayList<>();
+		List<ControllerEntity> controllers = manager()
+				.map(ControllerManager::getConnectedControllers)
+				.orElse(List.of());
+		for (ControllerEntity c : controllers) {
+			if (excluded.contains(c.uid())) {
+				continue;
+			}
+			Optional<InputComponent> input = c.input();
+			if (input.isEmpty()) {
+				continue;
+			}
+			ControllerStateView now = input.get().stateNow();
+			ControllerStateView then = input.get().stateThen();
+			if (now.isButtonDown(GamepadInputs.START_BUTTON) && !then.isButtonDown(GamepadInputs.START_BUTTON)) {
+				out.add(c.uid());
+			}
+		}
+		return out;
 	}
 
 	/** Binds this instance's active controller to {@code uid}. Returns true on success. */

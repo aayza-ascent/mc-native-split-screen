@@ -37,6 +37,7 @@ public final class SessionCoordinator {
 
 	private IpcServer ipc;
 	private int lanPort = -1;
+	private String hostControllerUid;
 	private TileLayout layout = TileLayout.HORIZONTAL;
 	private final Map<UUID, ChildHandle> children = new LinkedHashMap<>();
 
@@ -68,16 +69,39 @@ public final class SessionCoordinator {
 		}
 		// Host window becomes unfocused once children spawn — keep reading its own pad.
 		ControllerAssigner.enableBackgroundInput();
-		NSplit.LOG.info("[host] hosting couch co-op on LAN port {}", lanPort);
+		this.hostControllerUid = ControllerAssigner.currentControllerUid().orElse(null);
+		NSplit.LOG.info("[host] hosting couch co-op on LAN port {} (host pad: {})", lanPort, hostControllerUid);
 	}
 
 	public synchronized boolean isHosting() {
 		return lanPort > 0;
 	}
 
+	public synchronized TileLayout getLayout() {
+		return layout;
+	}
+
+	/** Snapshot of spawned children for UI display. */
+	public synchronized List<ChildHandle> childHandles() {
+		return new ArrayList<>(children.values());
+	}
+
+	/** Controller UIDs already in use (children + the host's own pad). */
+	public synchronized Set<String> assignedControllerUids() {
+		Set<String> s = children.values().stream()
+				.map(ChildHandle::controllerUid)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		if (hostControllerUid != null) {
+			s.add(hostControllerUid);
+		}
+		return s;
+	}
+
 	/** Clears state when the host world closes, so a later world isn't forced offline. */
 	public synchronized void reset() {
 		lanPort = -1;
+		hostControllerUid = null;
 		HostState.offlineLanRequested = false;
 		children.clear();
 		if (ipc != null) {
@@ -97,18 +121,18 @@ public final class SessionCoordinator {
 			NSplit.LOG.warn("[host] max players reached ({})", NSplit.MAX_PLAYERS);
 			return;
 		}
+		Set<String> assigned = assignedControllerUids();
+		if (controllerUid == null) {
+			// No pad specified (e.g. keyboard "Add Player") — auto-pick the next free one.
+			controllerUid = ControllerAssigner.pickUnassigned(assigned).orElse(null);
+		} else if (assigned.contains(controllerUid)) {
+			NSplit.LOG.warn("[host] controller {} already assigned; ignoring duplicate join", controllerUid);
+			return;
+		}
+
 		int slot = children.size() + 2; // host occupies slot 1
 		String username = OfflineIdentity.childUsername(slot);
 		UUID childId = UUID.randomUUID();
-
-		// Auto-assign the next unassigned controller if the caller didn't specify one.
-		if (controllerUid == null) {
-			Set<String> assigned = children.values().stream()
-					.map(ChildHandle::controllerUid)
-					.filter(Objects::nonNull)
-					.collect(Collectors.toSet());
-			controllerUid = ControllerAssigner.pickUnassigned(assigned).orElse(null);
-		}
 		try {
 			Path gameDir = GameDirManager.prepare(username);
 			ChildSpec spec = new ChildSpec(slot, username, childId,

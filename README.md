@@ -29,8 +29,10 @@ Phase-0 spikes below** — run **S1 first**, it is the project's kill switch.
 | Offline-LAN online-mode override (`IntegratedServerOnlineModeMixin`) | implemented (refmap-resolved; runtime spike S3 pending) |
 | Host hook: open offline LAN + begin hosting (`/couchcoop` command) | implemented (S3) |
 | Auto-connect to host LAN (`AutoConnector` → `ConnectScreen.connect`) | implemented (S3); JOIN/DISCONNECT lifecycle in `ChildBootstrap` |
-| Controller enumeration/assignment (`ControllerAssigner` + `ControllerBinder` → `ControlifyCompat`) | implemented (Phase 1); Controlify optional/compile-only, guarded. Auto-assign on `/couchcoop add`; binds + enables out-of-focus input. Runtime validation = spike S1 |
-| "Press Start to join" poll + full Join UX | **stub — Phase 1.5/2** (`/couchcoop add` is the interim entry) |
+| Controller enumeration/assignment (`ControllerAssigner` + `ControllerBinder` → `ControlifyCompat`) | implemented (Phase 1); Controlify optional/compile-only, guarded. Auto-assign on add; binds + enables out-of-focus input. Runtime validation = spike S1 |
+| "Press Start to join" gesture (`JoinGesturePoll`) | implemented (Phase 1.5); per-tick Start rising-edge on unassigned pads → spawn. Runtime = spike S1 |
+| Join screen UI + keybind (`CouchCoopScreen`, `CouchCoopKeybind`) | implemented (Phase 2); slots, layout cycle (H/V/grid), Start/Add/Done; opens via `/couchcoop` or the bindable key |
+| Per-player pause / "Open Couch Co-op" in pause menu | **not started** (per-player pause is free; pause-menu button is a nicety) |
 
 Search the source for `TODO(S3)` and `Phase1`/`Phase 2` to find every open seam.
 
