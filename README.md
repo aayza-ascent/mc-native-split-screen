@@ -29,8 +29,8 @@ Phase-0 spikes below** — run **S1 first**, it is the project's kill switch.
 | Offline-LAN online-mode override (`IntegratedServerOnlineModeMixin`) | implemented (refmap-resolved; runtime spike S3 pending) |
 | Host hook: open offline LAN + begin hosting (`/couchcoop` command) | implemented (S3) |
 | Auto-connect to host LAN (`AutoConnector` → `ConnectScreen.connect`) | implemented (S3); JOIN/DISCONNECT lifecycle in `ChildBootstrap` |
-| Controller enumeration/assignment (`ControllerAssigner`, `ControllerBinder`) | **stub — Phase 1** (needs Controlify dep) |
-| "Open Couch Co-op" button + full Join UX | **stub — Phase 2** (command is the interim entry) |
+| Controller enumeration/assignment (`ControllerAssigner` + `ControllerBinder` → `ControlifyCompat`) | implemented (Phase 1); Controlify optional/compile-only, guarded. Auto-assign on `/couchcoop add`; binds + enables out-of-focus input. Runtime validation = spike S1 |
+| "Press Start to join" poll + full Join UX | **stub — Phase 1.5/2** (`/couchcoop add` is the interim entry) |
 
 Search the source for `TODO(S3)` and `Phase1`/`Phase 2` to find every open seam.
 
@@ -65,9 +65,14 @@ Each is a throwaway experiment with a go/no-go kill criterion.
 
 ## Version lanes & next dependencies
 
-- Current lane: **MC 1.21.1**, Yarn mappings, Loom 1.11.8, Loader 0.16.14, Fabric API 0.116.12.
-- **Controlify** (`dev.isxander:controlify:3.0.0+lts`, covers 1.21–1.21.11) is commented out in
-  `build.gradle`; uncomment when implementing `ControllerAssigner` (Phase 1).
+- Current lane: **MC 1.21.1**, Yarn mappings, **Loom 1.16.3** (≥1.14.4 required by Controlify),
+  Loader 0.16.14, Fabric API 0.116.12.
+- **Controlify** `dev.isxander:controlify:2.5.0+1.21.1-fabric` — added as `modCompileOnly`
+  (`transitive = false`) since it's an *optional* dependency; all usage is guarded by
+  `isModLoaded("controlify")` and isolated in `controller/compat/ControlifyCompat`, so the mod
+  runs without it and Controlify is **not** bundled. To exercise controllers in dev (spike S1),
+  install Controlify **and its deps** (YACL, SDL natives) into the `run/mods` folder, or add the
+  Modrinth/Quilt/Terraformers repos and a `modLocalRuntime` line. (`3.0.0+lts` has no 1.21.1 build.)
 - **Multiversion 1.21.1→1.21.11** (Stonecutter) and the **Mojang-mappings + Parchment** migration
   are Phase 5 — the render pipeline is never touched, so only a few seams need gating
   (`openToLan`/`setOnlineMode`, `ConnectScreen.connect`, `Window`, `ServerInfo`). The scaffold

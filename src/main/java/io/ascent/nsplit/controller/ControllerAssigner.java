@@ -1,28 +1,58 @@
 package io.ascent.nsplit.controller;
 
 import io.ascent.nsplit.NSplit;
+import io.ascent.nsplit.controller.compat.ControlifyCompat;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.util.Optional;
+import java.util.Set;
 
 /**
- * Host-side controller assignment (Phase 1). Stub for now — implemented once the Controlify
- * dependency is added (see build.gradle / README).
+ * Host-side controller assignment. Controlify is optional — every entry that touches it is
+ * guarded by {@link #available()} so {@link ControlifyCompat} (and the Controlify classes it
+ * references) is only classloaded when Controlify is present.
  *
- * <p>Planned mechanism:
- * <ul>
- *   <li>Force the Controlify SDL backend and {@code out_of_focus_input=true} in every
- *       instance (the make-or-break toggle for background controller input on macOS).</li>
- *   <li>Subscribe {@code ControlifyEvents.CONTROLLER_STATE_UPDATE}; when an unassigned,
- *       non-active pad presses Start, open the Join UX bound to {@code controller.info().uid()}
- *       and call {@link io.ascent.nsplit.host.SessionCoordinator#addPlayer(String)}.</li>
- *   <li>Prefer DIFFERENT controller models per player — identical Bluetooth pads collapse to
- *       one UID (Controlify #853/#784), which breaks per-player routing (plan risk R2).</li>
- * </ul>
+ * <p>Current model: {@code /couchcoop add} auto-assigns the next connected, unassigned
+ * controller to the new player. A "press Start on an unassigned pad to join" poll is a
+ * follow-up; it needs Controlify's per-controller input/binding API and is best validated
+ * alongside spike S1.
  */
 public final class ControllerAssigner {
+	private static final String CONTROLIFY = "controlify";
+
 	private ControllerAssigner() {
 	}
 
+	public static boolean available() {
+		return FabricLoader.getInstance().isModLoaded(CONTROLIFY);
+	}
+
 	public static void init() {
-		NSplit.LOG.info("[host] ControllerAssigner stub — add Controlify dep, then implement "
-				+ "CONTROLLER_STATE_UPDATE poll + SDL/out_of_focus_input enforcement (Phase 1).");
+		if (available()) {
+			NSplit.LOG.info("[host] Controlify detected — controllers auto-assign on /couchcoop add. "
+					+ "Use DIFFERENT controller models per player; identical pads share a UID (plan R2).");
+		} else {
+			NSplit.LOG.info("[host] Controlify not installed — controller assignment disabled.");
+		}
+	}
+
+	/** Enables out-of-focus input on this instance so unfocused tiles still read their pad. */
+	public static void enableBackgroundInput() {
+		if (available()) {
+			ControlifyCompat.enableBackgroundInput();
+		}
+	}
+
+	/** Next connected controller UID not in {@code assigned}, if Controlify is present. */
+	public static Optional<String> pickUnassigned(Set<String> assigned) {
+		if (!available()) {
+			return Optional.empty();
+		}
+		Optional<String> uid = ControlifyCompat.firstUnassignedUid(assigned);
+		uid.ifPresent(u -> NSplit.LOG.info("[host] assigning controller {} ({})", u, ControlifyCompat.nameOf(u)));
+		if (uid.isEmpty()) {
+			NSplit.LOG.warn("[host] no unassigned controller connected — player will spawn without a pad.");
+		}
+		return uid;
 	}
 }

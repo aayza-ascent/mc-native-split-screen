@@ -1,6 +1,7 @@
 package io.ascent.nsplit.host;
 
 import io.ascent.nsplit.NSplit;
+import io.ascent.nsplit.controller.ControllerAssigner;
 import io.ascent.nsplit.ipc.IpcMessage;
 import io.ascent.nsplit.ipc.IpcServer;
 import io.ascent.nsplit.launch.ChildSpec;
@@ -16,7 +17,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Host-side orchestrator: tracks child instances, spawns them, routes window rects and
@@ -62,6 +66,8 @@ public final class SessionCoordinator {
 				NSplit.LOG.error("[host] failed to start IPC server", e);
 			}
 		}
+		// Host window becomes unfocused once children spawn — keep reading its own pad.
+		ControllerAssigner.enableBackgroundInput();
 		NSplit.LOG.info("[host] hosting couch co-op on LAN port {}", lanPort);
 	}
 
@@ -94,6 +100,15 @@ public final class SessionCoordinator {
 		int slot = children.size() + 2; // host occupies slot 1
 		String username = OfflineIdentity.childUsername(slot);
 		UUID childId = UUID.randomUUID();
+
+		// Auto-assign the next unassigned controller if the caller didn't specify one.
+		if (controllerUid == null) {
+			Set<String> assigned = children.values().stream()
+					.map(ChildHandle::controllerUid)
+					.filter(Objects::nonNull)
+					.collect(Collectors.toSet());
+			controllerUid = ControllerAssigner.pickUnassigned(assigned).orElse(null);
+		}
 		try {
 			Path gameDir = GameDirManager.prepare(username);
 			ChildSpec spec = new ChildSpec(slot, username, childId,

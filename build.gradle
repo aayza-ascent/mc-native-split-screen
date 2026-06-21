@@ -24,8 +24,14 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
 	// --- Phase 1: Controlify (controller enumeration / assignment) ---------------
-	// Uncomment when ControllerAssigner is implemented. 3.0.0+lts covers 1.21–1.21.11.
-	// modImplementation "dev.isxander:controlify:${project.controlify_version}"
+	// Optional dependency: compile against the API only (transitive = false avoids
+	// Controlify's heavy optional graph — sodium/iris/modmenu/voicechat). All usage is
+	// guarded behind FabricLoader.isModLoaded("controlify") and isolated in the
+	// io.ascent.nsplit.controller.compat package, so the mod runs fine without it.
+	// To exercise it in dev (spike S1), install Controlify + its deps in the run mods.
+	modCompileOnly("dev.isxander:controlify:${project.controlify_version}") {
+		transitive = false
+	}
 }
 
 processResources {
