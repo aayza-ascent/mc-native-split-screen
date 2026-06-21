@@ -10,10 +10,15 @@ base {
 }
 
 repositories {
-	// Controlify + libsdl4j live here (used from Phase 1 onward).
+	// Controlify + libsdl4j + YACL live here.
 	maven {
 		name = 'Xander'
 		url = 'https://maven.isxander.dev/releases'
+	}
+	// YACL pulls org.quiltmc.parsers (json/gson) from here.
+	maven {
+		name = 'QuiltMC'
+		url = 'https://maven.quiltmc.org/repository/release/'
 	}
 }
 
@@ -31,6 +36,16 @@ dependencies {
 	// To exercise it in dev (spike S1), install Controlify + its deps in the run mods.
 	modCompileOnly("dev.isxander:controlify:${project.controlify_version}") {
 		transitive = false
+	}
+
+	// Dev-only: makes `runClient` actually load Controlify so spike S1 can be exercised
+	// in-IDE. Optional integration mods (sodium/iris/reese/immediatelyfast/voicechat via
+	// maven.modrinth, modmenu via terraformersmc) are excluded to keep the dev runtime lean;
+	// YACL (required) + quilt parsers resolve from the Xander/Quilt repos. NOT in the
+	// published jar — modLocalRuntime is dev-classpath only.
+	modLocalRuntime("dev.isxander:controlify:${project.controlify_version}") {
+		exclude group: "maven.modrinth"
+		exclude group: "com.terraformersmc"
 	}
 }
 

@@ -2,6 +2,7 @@ package io.ascent.nsplit.host;
 
 import io.ascent.nsplit.NSplit;
 import io.ascent.nsplit.client.CouchCoopKeybind;
+import io.ascent.nsplit.client.PauseMenuButton;
 import io.ascent.nsplit.controller.ControllerAssigner;
 import io.ascent.nsplit.controller.JoinGesturePoll;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -19,6 +20,7 @@ public final class HostCoordinator {
 		CouchCoopCommands.register();
 		JoinGesturePoll.register();
 		CouchCoopKeybind.register();
+		PauseMenuButton.register();
 		// Integrated server stop = host world closed: clear session + un-force offline mode.
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> SessionCoordinator.get().reset());
 		NSplit.LOG.info("[host] ready. Run /couchcoop (or bind the 'Open Couch Co-op Screen' key) "
