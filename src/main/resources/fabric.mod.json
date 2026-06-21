@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "nsplit",
+	"version": "${version}",
+	"name": "Native Split Screen",
+	"description": "Console-style local couch co-op for Minecraft Java: opens the host world to a private offline LAN, then launches and tiles additional Minecraft client instances, one controller each.",
+	"authors": [
+		"Ascent"
+	],
+	"contact": {},
+	"license": "MIT",
+	"icon": "assets/nsplit/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"io.ascent.nsplit.NSplitClient"
+		]
+	},
+	"mixins": [
+		{
+			"config": "nsplit.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.16.5",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"controlify": "*"
+	}
+}

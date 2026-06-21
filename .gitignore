@@ -1,0 +1,25 @@
+# Gradle / Loom
+.gradle/
+build/
+out/
+classes/
+remappedSrc/
+.fabric/
+run/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# OS
+.DS_Store
+
+# Per-child instance dirs created at runtime by GameDirManager
+.nsplit-instances/

@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "io.ascent.nsplit.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"IntegratedServerOnlineModeMixin",
+		"MinecraftClientSessionAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

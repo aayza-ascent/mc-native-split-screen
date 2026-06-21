@@ -1,0 +1,15 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		gradlePluginPortal()
+	}
+}
+
+// NOTE: No foojay-resolver / Java toolchain auto-provisioning. Run Gradle on a JDK >= 21
+// (see README "Build"); the daemon JVM is used to compile with --release 21. The foojay
+// resolver is incompatible with Gradle 9 (JvmVendorSpec.IBM_SEMERU was removed).
+
+rootProject.name = 'native-split-screen'

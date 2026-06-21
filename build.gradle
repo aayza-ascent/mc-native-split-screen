@@ -1,0 +1,60 @@
+plugins {
+	id 'fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	// Controlify + libsdl4j live here (used from Phase 1 onward).
+	maven {
+		name = 'Xander'
+		url = 'https://maven.isxander.dev/releases'
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+	// --- Phase 1: Controlify (controller enumeration / assignment) ---------------
+	// Uncomment when ControllerAssigner is implemented. 3.0.0+lts covers 1.21–1.21.11.
+	// modImplementation "dev.isxander:controlify:${project.controlify_version}"
+}
+
+processResources {
+	inputs.property "version", project.version
+	filteringCharset "UTF-8"
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
+
+java {
+	withSourcesJar()
+
+	// Bytecode targets Java 21 (Minecraft 1.21.x baseline). The Gradle daemon must run on
+	// a JDK >= 21 (this repo's CI/dev uses JDK 24; see README "Build"). We deliberately do
+	// NOT configure a Java toolchain: toolchain auto-provisioning via the foojay resolver is
+	// broken on Gradle 9 (references the removed JvmVendorSpec.IBM_SEMERU), and the daemon
+	// JVM already satisfies Loom's >= 21 requirement.
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	from("LICENSE") {
+		rename { "${it}_${project.archives_base_name}" }
+	}
+}
