@@ -100,7 +100,9 @@ public final class SessionCoordinator {
 					"localhost:" + lanPort, controllerUid, gameDir);
 			Process p = InstanceLauncher.launch(spec);
 			children.put(childId, new ChildHandle(slot, username, p, gameDir, controllerUid, false));
-			NSplit.LOG.info("[host] spawned slot {} ({})", slot, username);
+			final UUID id = childId;
+			p.onExit().thenAccept(proc -> onChildExited(id, proc.exitValue()));
+			NSplit.LOG.info("[host] spawned slot {} ({}); child boot takes a few seconds", slot, username);
 		} catch (Exception e) {
 			NSplit.LOG.error("[host] failed to add player slot " + slot, e);
 		}
@@ -120,6 +122,22 @@ public final class SessionCoordinator {
 			default -> {
 			}
 		}
+	}
+
+	/** Logged when a child process exits — surfaces relaunch/connect failures (spike S4). */
+	private synchronized void onChildExited(UUID childId, int exitCode) {
+		ChildHandle h = children.remove(childId);
+		if (h == null) {
+			return;
+		}
+		if (h.ready()) {
+			NSplit.LOG.info("[host] child slot {} ({}) exited (code {})", h.slot(), h.username(), exitCode);
+		} else {
+			NSplit.LOG.warn("[host] child slot {} ({}) exited BEFORE joining (code {}). Likely a "
+							+ "relaunch/auth/connect failure — inspect the child console output above.",
+					h.slot(), h.username(), exitCode);
+		}
+		retile();
 	}
 
 	private void markReady(UUID childId) {

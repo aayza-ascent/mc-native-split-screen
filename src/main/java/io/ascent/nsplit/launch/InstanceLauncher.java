@@ -37,8 +37,10 @@ public final class InstanceLauncher {
 	/** Builds and starts the child process. Caller owns the returned {@link Process}. */
 	public static Process launch(ChildSpec spec) throws IOException {
 		List<String> cmd = buildCommand(spec);
-		NSplit.LOG.info("[launch] slot {} ({}) -> {}", spec.slot(), spec.username(), spec.serverAddress());
-		NSplit.LOG.debug("[launch] command: {}", String.join(" ", cmd));
+		NSplit.LOG.info("[launch] slot {} ({}) -> {} (dev={})",
+				spec.slot(), spec.username(), spec.serverAddress(),
+				FabricLoader.getInstance().isDevelopmentEnvironment());
+		NSplit.LOG.info("[launch] {}", abbreviate(cmd));
 
 		ProcessBuilder pb = new ProcessBuilder(cmd)
 				.directory(spec.gameDir().toFile())
@@ -70,27 +72,51 @@ public final class InstanceLauncher {
 			cmd.add(prop(NSplit.PROP_CONTROLLER_UID, spec.controllerUid()));
 		}
 
-		// Dev-environment relaunch: forward the props Loom relies on, and re-add
-		// classpath-origin mods (incl. the mod-under-development) that KnotClient would
-		// otherwise not discover. No-ops in production.
+		// Dev-environment relaunch: launch KnotClient directly (not via DevLaunchInjector)
+		// and forward the properties Loom's launch.cfg would otherwise apply. The
+		// mod-under-development lives on java.class.path (build/classes/java/main +
+		// build/resources/main) and is discovered from there, so only PATH-origin mods NOT
+		// already on the classpath need -Dfabric.addMods. fabric.remapClasspathFile is
+		// REQUIRED in dev — KnotClient uses it to remap the intermediary classpath to named.
+		// No-ops in production. (Verified against this project's .gradle/loom-cache/launch.cfg.)
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
 			cmd.add("-Dfabric.development=true");
 			String addMods = classpathOriginMods();
 			if (!addMods.isEmpty()) {
 				cmd.add("-Dfabric.addMods=" + addMods);
 			}
-			forwardIfPresent(cmd, "fabric.classPathGroups");
 			forwardIfPresent(cmd, "fabric.remapClasspathFile");
+			forwardIfPresent(cmd, "fabric.classPathGroups");   // only set in multi-mod projects
+			forwardIfPresent(cmd, "log4j.configurationFile");  // keep child logs consistent
+			forwardIfPresent(cmd, "log4j2.formatMsgNoLookups");
 		}
 
 		// 3) Classpath + Fabric main class.
+		String classpath = System.getProperty("java.class.path", "");
+		if (classpath.isBlank()) {
+			throw new IllegalStateException("java.class.path is empty; cannot reconstruct the child classpath");
+		}
 		cmd.add("-cp");
-		cmd.add(System.getProperty("java.class.path"));
+		cmd.add(classpath);
 		cmd.add(KNOT_CLIENT);
 
 		// 4) Program args = host's launch args with --gameDir pointed at the child dir.
 		cmd.addAll(rewriteGameDir(FabricLoader.getInstance().getLaunchArguments(false), spec.gameDir()));
 		return cmd;
+	}
+
+	/** Renders the command for logging, collapsing the long classpath to an entry count. */
+	private static String abbreviate(List<String> cmd) {
+		List<String> out = new ArrayList<>(cmd.size());
+		for (int i = 0; i < cmd.size(); i++) {
+			String a = cmd.get(i);
+			if (i > 0 && "-cp".equals(cmd.get(i - 1)) && a.length() > 80) {
+				out.add("<classpath: " + a.split(java.io.File.pathSeparator).length + " entries>");
+			} else {
+				out.add(a);
+			}
+		}
+		return String.join(" ", out);
 	}
 
 	private static String javaBinary() {

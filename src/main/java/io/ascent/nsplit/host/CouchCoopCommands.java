@@ -2,6 +2,9 @@ package io.ascent.nsplit.host;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.ascent.nsplit.NSplit;
+import io.ascent.nsplit.launch.ChildSpec;
+import io.ascent.nsplit.launch.GameDirManager;
+import io.ascent.nsplit.launch.InstanceLauncher;
 import io.ascent.nsplit.window.TileLayout;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -12,7 +15,11 @@ import net.minecraft.world.GameMode;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Client command {@code /couchcoop start|add|layout <h|v|grid>} — the S3/spike entry point
@@ -47,7 +54,11 @@ public final class CouchCoopCommands {
 										.executes(ctx -> {
 											layout(StringArgumentType.getString(ctx, "mode"), ctx.getSource()::sendFeedback);
 											return 1;
-										})))));
+										})))
+						.then(ClientCommandManager.literal("dryrun").executes(ctx -> {
+							dryrun(ctx.getSource()::sendFeedback);
+							return 1;
+						}))));
 	}
 
 	@FunctionalInterface
@@ -102,6 +113,22 @@ public final class CouchCoopCommands {
 		}
 		SessionCoordinator.get().addPlayer(null);
 		fb.send(Text.literal("[NativeSplit] Spawning a player instance (this takes a few seconds)..."));
+	}
+
+	/** Writes the reconstructed child launch command to a file — diagnostic for spike S4. */
+	private static void dryrun(Feedback fb) {
+		try {
+			Path dir = GameDirManager.prepare("dryrun");
+			ChildSpec spec = new ChildSpec(2, "Player2", UUID.randomUUID(), "localhost:25565", null, dir);
+			List<String> cmd = InstanceLauncher.buildCommand(spec);
+			Path out = GameDirManager.hostGameDir().resolve(".nsplit-instances").resolve("launch-dryrun.txt");
+			Files.writeString(out, String.join(" \\\n  ", cmd));
+			fb.send(Text.literal("[NativeSplit] Wrote child launch command (" + cmd.size()
+					+ " args) to " + out));
+			NSplit.LOG.info("[host] dryrun launch command written to {}", out);
+		} catch (Exception e) {
+			fb.send(Text.literal("[NativeSplit] dryrun failed: " + e.getMessage()));
+		}
 	}
 
 	private static void layout(String mode, Feedback fb) {
