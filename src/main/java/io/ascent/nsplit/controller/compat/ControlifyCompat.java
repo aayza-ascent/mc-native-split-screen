@@ -39,13 +39,6 @@ public final class ControlifyCompat {
 		}
 	}
 
-	/** UIDs of all currently connected controllers. */
-	public static List<String> connectedUids() {
-		return manager()
-				.map(m -> m.getConnectedControllers().stream().map(ControllerEntity::uid).toList())
-				.orElse(List.of());
-	}
-
 	/** First connected controller UID not already in {@code assigned}, if any. */
 	public static Optional<String> firstUnassignedUid(Set<String> assigned) {
 		return manager().stream()
