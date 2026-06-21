@@ -9,9 +9,12 @@ import io.ascent.nsplit.launch.InstanceLauncher;
 import io.ascent.nsplit.session.OfflineIdentity;
 import io.ascent.nsplit.window.TileLayout;
 import io.ascent.nsplit.window.WindowTiler;
+import net.minecraft.client.MinecraftClient;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -60,6 +63,22 @@ public final class SessionCoordinator {
 			}
 		}
 		NSplit.LOG.info("[host] hosting couch co-op on LAN port {}", lanPort);
+	}
+
+	public synchronized boolean isHosting() {
+		return lanPort > 0;
+	}
+
+	/** Clears state when the host world closes, so a later world isn't forced offline. */
+	public synchronized void reset() {
+		lanPort = -1;
+		HostState.offlineLanRequested = false;
+		children.clear();
+		if (ipc != null) {
+			ipc.close();
+			ipc = null;
+		}
+		NSplit.LOG.info("[host] couch co-op session reset");
 	}
 
 	/** Adds a local player bound to {@code controllerUid} ({@code null} = unassigned yet). */
@@ -115,39 +134,40 @@ public final class SessionCoordinator {
 	}
 
 	/**
-	 * Recomputes the grid for (host + children) and pushes each child's rect over IPC.
-	 *
-	 * <p>TODO(S3): {@link WindowTiler#primaryWorkArea()} and the host's own
-	 * {@link WindowTiler#apply} call GLFW and MUST be marshalled onto the render thread
-	 * (via {@code MinecraftClient.execute}); do that in the glue layer that invokes retile.
+	 * Recomputes the grid for (host + children), applies the host's own tile, and pushes
+	 * each child's rect over IPC. State is snapshotted under lock, then all GLFW work runs
+	 * on the render thread via {@code MinecraftClient.execute} (GLFW is render-thread-only).
 	 */
-	public synchronized void retile() {
-		if (ipc == null) {
-			return;
-		}
-		int count = children.size() + 1;
-		WindowTiler.Rect[] tiles = WindowTiler.computeTiles(count, layout, WindowTiler.primaryWorkArea());
-		// tiles[0] is the host's own rect (applied by the S3 glue hook on the render thread).
-		int i = 1;
-		for (Map.Entry<UUID, ChildHandle> e : children.entrySet()) {
-			if (i >= tiles.length) {
-				break;
+	public void retile() {
+		final List<UUID> order;
+		final TileLayout lay;
+		synchronized (this) {
+			if (ipc == null) {
+				return;
 			}
-			WindowTiler.Rect r = tiles[i++];
-			ipc.send(e.getKey(), IpcMessage.of(IpcMessage.Type.RECT,
-					String.valueOf(r.x()), String.valueOf(r.y()),
-					String.valueOf(r.w()), String.valueOf(r.h())));
+			order = new ArrayList<>(children.keySet());
+			lay = layout;
 		}
-		NSplit.LOG.info("[host] retiled for {} players ({})", count, layout);
+		MinecraftClient mc = MinecraftClient.getInstance();
+		mc.execute(() -> {
+			int count = order.size() + 1;
+			WindowTiler.Rect[] tiles = WindowTiler.computeTiles(count, lay, WindowTiler.primaryWorkArea());
+			WindowTiler.apply(mc.getWindow().getHandle(), tiles[0]); // host occupies slot 1
+			IpcServer server = ipc;
+			for (int i = 0; i < order.size() && i + 1 < tiles.length; i++) {
+				WindowTiler.Rect r = tiles[i + 1];
+				if (server != null) {
+					server.send(order.get(i), IpcMessage.of(IpcMessage.Type.RECT,
+							String.valueOf(r.x()), String.valueOf(r.y()),
+							String.valueOf(r.w()), String.valueOf(r.h())));
+				}
+			}
+			NSplit.LOG.info("[host] retiled for {} players ({})", count, lay);
+		});
 	}
 
 	public synchronized void setLayout(TileLayout layout) {
 		this.layout = layout;
 		retile();
-	}
-
-	public synchronized WindowTiler.Rect hostTile() {
-		int count = children.size() + 1;
-		return WindowTiler.computeTiles(count, layout, WindowTiler.primaryWorkArea())[0];
 	}
 }
