@@ -26,10 +26,11 @@ Phase-0 spikes below** — run **S1 first**, it is the project's kill switch.
 | Host↔child IPC (`IpcServer`/`IpcClient`, localhost-only) | implemented |
 | Window tiling math + GLFW apply (`WindowTiler`) | implemented |
 | Offline identity + session swap (`OfflineIdentity`, `OfflineSessionProvider`, accessor mixin) | implemented |
-| Offline-LAN online-mode override (`IntegratedServerOnlineModeMixin`) | implemented (verify on target — `TODO(S3)`) |
-| Auto-connect to host LAN (`AutoConnector`) | **stub — `TODO(S3)`** (needs `ConnectScreen.connect`) |
+| Offline-LAN online-mode override (`IntegratedServerOnlineModeMixin`) | implemented (refmap-resolved; runtime spike S3 pending) |
+| Host hook: open offline LAN + begin hosting (`/couchcoop` command) | implemented (S3) |
+| Auto-connect to host LAN (`AutoConnector` → `ConnectScreen.connect`) | implemented (S3); JOIN/DISCONNECT lifecycle in `ChildBootstrap` |
 | Controller enumeration/assignment (`ControllerAssigner`, `ControllerBinder`) | **stub — Phase 1** (needs Controlify dep) |
-| "Open Couch Co-op" + Join UX | **stub — Phase 2** |
+| "Open Couch Co-op" button + full Join UX | **stub — Phase 2** (command is the interim entry) |
 
 Search the source for `TODO(S3)` and `Phase1`/`Phase 2` to find every open seam.
 
@@ -52,9 +53,13 @@ Each is a throwaway experiment with a go/no-go kill criterion.
   B drives player B and pad A drives player A, independently. **No-go → stop.**
 - **S2 — borderless tiled grid, Retina-correct.** Verify `WindowTiler` produces non-doubled
   side-by-side tiles from `glfwGetMonitorWorkarea` (logical points), menu bar + Dock auto-hidden.
-- **S3 — offline child auto-join.** `IntegratedServerOnlineModeMixin` flips `online-mode=false`;
-  implement `AutoConnector`'s `ConnectScreen.connect`; confirm a second offline instance joins
-  with a distinct UUID and no duplicate-login kick.
+- **S3 — offline child auto-join (code in place; run it).** With two JDK-24 terminals or via
+  `runClient`: launch the dev client, create/open a singleplayer world, then run
+  **`/couchcoop start`** (opens the world to LAN with `online-mode=false`) and **`/couchcoop add`**
+  (spawns a child instance that injects an offline session and auto-joins). Expect a second window
+  that joins as `Player2` with a distinct UUID and no duplicate-login kick. `/couchcoop layout
+  horizontal|vertical|grid` retiles. **Note:** in the Loom dev env the child relaunch relies on
+  `-Dfabric.addMods` forwarding (see `InstanceLauncher`) — that path itself is **spike S4**.
 - **S4 — one-jar dual-role relaunch in dev.** `InstanceLauncher` spawns a child from `runClient`
   (forwarding `-Dfabric.addMods`); confirm the child loads this mod and enters child mode.
 
