@@ -32,7 +32,8 @@ Phase-0 spikes below** — run **S1 first**, it is the project's kill switch.
 | Controller enumeration/assignment (`ControllerAssigner` + `ControllerBinder` → `ControlifyCompat`) | implemented (Phase 1); Controlify optional/compile-only, guarded. Auto-assign on add; binds + enables out-of-focus input. Runtime validation = spike S1 |
 | "Press Start to join" gesture (`JoinGesturePoll`) | implemented (Phase 1.5); per-tick Start rising-edge on unassigned pads → spawn. Runtime = spike S1 |
 | Join screen UI + keybind (`CouchCoopScreen`, `CouchCoopKeybind`) | implemented (Phase 2); slots, layout cycle (H/V/grid), Start/Add/Done; opens via `/couchcoop` or the bindable key |
-| Per-player pause / "Open Couch Co-op" in pause menu | **not started** (per-player pause is free; pause-menu button is a nicety) |
+| Pause-menu "Couch Co-op" button (`PauseMenuButton`) | implemented; `ScreenEvents.AFTER_INIT` + `Screens.getButtons`, no mixin |
+| Per-player pause | free (each player is a real client) — nothing to build |
 
 Search the source for `TODO(S3)` and `Phase1`/`Phase 2` to find every open seam.
 
@@ -50,9 +51,10 @@ Search the source for `TODO(S3)` and `Phase1`/`Phase 2` to find every open seam.
 
 Each is a throwaway experiment with a go/no-go kill criterion.
 
-- **S1 — controller in an *unfocused* window (make-or-break).** Two instances, Controlify SDL
-  backend + `out_of_focus_input=true`, two **different-model** pads. Focus window A; confirm pad
-  B drives player B and pad A drives player A, independently. **No-go → stop.**
+- **S1 — controller in an *unfocused* window (make-or-break).** `./gradlew runClient` (Controlify
+  auto-loads in dev), open a world, `/couchcoop` → Start, then press Start on a second pad (or Add
+  Player). The mod sets `out_of_focus_input=true` automatically. With two **different-model** pads,
+  confirm each unfocused tile responds to only its own pad. **No-go → stop.**
 - **S2 — borderless tiled grid, Retina-correct.** Verify `WindowTiler` produces non-doubled
   side-by-side tiles from `glfwGetMonitorWorkarea` (logical points), menu bar + Dock auto-hidden.
 - **S3 — offline child auto-join (code in place; run it).** With two JDK-24 terminals or via
@@ -68,13 +70,13 @@ Each is a throwaway experiment with a go/no-go kill criterion.
 ## Version lanes & next dependencies
 
 - Current lane: **MC 1.21.1**, Yarn mappings, **Loom 1.16.3** (≥1.14.4 required by Controlify),
-  Loader 0.16.14, Fabric API 0.116.12.
-- **Controlify** `dev.isxander:controlify:2.5.0+1.21.1-fabric` — added as `modCompileOnly`
-  (`transitive = false`) since it's an *optional* dependency; all usage is guarded by
-  `isModLoaded("controlify")` and isolated in `controller/compat/ControlifyCompat`, so the mod
-  runs without it and Controlify is **not** bundled. To exercise controllers in dev (spike S1),
-  install Controlify **and its deps** (YACL, SDL natives) into the `run/mods` folder, or add the
-  Modrinth/Quilt/Terraformers repos and a `modLocalRuntime` line. (`3.0.0+lts` has no 1.21.1 build.)
+  **Loader 0.17.3** (≥0.17.0 required by Controlify 2.5.0), Fabric API 0.116.12.
+- **Controlify** `dev.isxander:controlify:2.5.0+1.21.1-fabric` — `modCompileOnly`
+  (`transitive = false`) since it's *optional*; all usage is guarded by `isModLoaded("controlify")`
+  and isolated in `controller/compat/ControlifyCompat`, so the mod runs without it and Controlify
+  is **not** bundled. A `modLocalRuntime` line (with the optional sodium/iris/modmenu/voicechat
+  integrations excluded) makes **`./gradlew runClient` auto-load Controlify + YACL** so spike S1
+  can be exercised in-IDE — verified loading cleanly with SDL3 3.2.18. (`3.0.0+lts` has no 1.21.1 build.)
 - **Multiversion 1.21.1→1.21.11** (Stonecutter) and the **Mojang-mappings + Parchment** migration
   are Phase 5 — the render pipeline is never touched, so only a few seams need gating
   (`openToLan`/`setOnlineMode`, `ConnectScreen.connect`, `Window`, `ServerInfo`). The scaffold
