@@ -20,6 +20,12 @@ repositories {
 		name = 'QuiltMC'
 		url = 'https://maven.quiltmc.org/repository/release/'
 	}
+	// Sodium (for the Controlify remap classpath only — see build deps).
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+		content { includeGroup 'maven.modrinth' }
+	}
 }
 
 dependencies {
@@ -35,6 +41,22 @@ dependencies {
 	// io.ascent.nsplit.controller.compat package, so the mod runs fine without it.
 	// To exercise it in dev (spike S1), install Controlify + its deps in the run mods.
 	modCompileOnly("dev.isxander:controlify:${project.controlify_version}") {
+		transitive = false
+	}
+	// YACL MUST be on Controlify's remap classpath. Controlify's controller-settings screen
+	// calls MC methods inherited by YACL widgets (e.g. OptionListWidget.setScrollAmount). With
+	// transitive=false above, Loom couldn't see YACL's class hierarchy and left those calls as
+	// intermediary names (method_25307...), which crash at runtime (NoSuchMethodError) the
+	// moment a controller navigates the settings tabs. Adding YACL here lets the remap resolve
+	// them. Compile-only; the runtime copy comes transitively via modLocalRuntime below.
+	modCompileOnly("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
+		transitive = false
+	}
+	// Same reasoning for Sodium: Controlify's Sodium-settings integration calls MC methods
+	// inherited by Sodium GUI classes; without Sodium on the remap classpath those stay
+	// intermediary and crash when the video-settings screen is navigated with a controller.
+	// The dev run mods include Sodium, so this path is live. Compile-only (remap classpath).
+	modCompileOnly("maven.modrinth:sodium:mc1.21.1-0.6.13-fabric") {
 		transitive = false
 	}
 
