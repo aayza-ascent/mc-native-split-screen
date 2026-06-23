@@ -25,11 +25,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(IntegratedServer.class)
 public abstract class IntegratedServerOnlineModeMixin {
 	@Inject(method = "openToLan", at = @At("HEAD"))
-	private void nsplit$forceOfflineLan(CallbackInfoReturnable<Boolean> cir) {
+	private void nsplit$forceCouchCoopLan(CallbackInfoReturnable<Boolean> cir) {
 		if (!HostState.offlineLanRequested) {
 			return;
 		}
-		((MinecraftServer) (Object) this).setOnlineMode(false);
-		NSplit.LOG.info("[host] integrated server online-mode disabled for couch co-op LAN");
+		MinecraftServer server = (MinecraftServer) (Object) this;
+		server.setOnlineMode(false);  // accept offline children
+		server.setPvpEnabled(false);  // couch co-op is friendly — no PvP between local players
+		NSplit.LOG.info("[host] couch co-op LAN: online-mode + PvP disabled");
 	}
 }
