@@ -46,6 +46,10 @@ public final class InstanceLauncher {
 				.directory(spec.gameDir().toFile())
 				.redirectOutput(ProcessBuilder.Redirect.INHERIT)
 				.redirectError(ProcessBuilder.Redirect.INHERIT);
+		// macOS: avoid double-enumeration of Xbox/Switch pads (GameController + HIDAPI), which
+		// doubles controller input. Keep only the GameController path (also gives background input).
+		pb.environment().put("SDL_JOYSTICK_HIDAPI_XBOX", "0");
+		pb.environment().put("SDL_JOYSTICK_HIDAPI_SWITCH", "0");
 		return pb.start();
 	}
 

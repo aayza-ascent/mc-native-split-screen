@@ -101,3 +101,15 @@ jar {
 		rename { "${it}_${project.archives_base_name}" }
 	}
 }
+
+// macOS doubles controller input: recent macOS enumerates one Xbox/Switch pad twice — once via
+// the GameController framework (MFI) and once via SDL's HIDAPI driver — so a single D-pad press
+// or stick move registers ~twice (recipe-book skipping, jumpy virtual mouse, phantom joins).
+// Disable HIDAPI for those pad types so only the GameController path is used (it also provides
+// the background/unfocused input couch co-op relies on). Controlify forces HIDAPI on generally
+// but does not set these per-type hints, so the env vars hold. Applied to the dev host here and
+// to spawned children in InstanceLauncher.
+tasks.named('runClient') {
+	environment 'SDL_JOYSTICK_HIDAPI_XBOX', '0'
+	environment 'SDL_JOYSTICK_HIDAPI_SWITCH', '0'
+}
