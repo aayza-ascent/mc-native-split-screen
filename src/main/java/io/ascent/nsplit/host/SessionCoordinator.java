@@ -111,7 +111,7 @@ public final class SessionCoordinator {
 		NSplit.LOG.info("[host] couch co-op session reset");
 	}
 
-	/** Adds a local player bound to {@code controllerUid} ({@code null} = unassigned yet). */
+	/** Adds a local player bound to {@code controllerUid} ({@code null} = keyboard, no controller). */
 	public synchronized void addPlayer(String controllerUid) {
 		if (lanPort <= 0) {
 			NSplit.LOG.warn("[host] addPlayer before beginHosting(); open the world to LAN first");
@@ -121,11 +121,9 @@ public final class SessionCoordinator {
 			NSplit.LOG.warn("[host] max players reached ({})", NSplit.MAX_PLAYERS);
 			return;
 		}
-		Set<String> assigned = assignedControllerUids();
-		if (controllerUid == null) {
-			// No pad specified (e.g. keyboard "Add Player") — auto-pick the next free one.
-			controllerUid = ControllerAssigner.pickUnassigned(assigned).orElse(null);
-		} else if (assigned.contains(controllerUid)) {
+		// A controller is assigned only via the join gesture, which already filtered out the
+		// host's pad and duplicate enumerations. Guard against the same device joining twice.
+		if (controllerUid != null && assignedControllerUids().contains(controllerUid)) {
 			NSplit.LOG.warn("[host] controller {} already assigned; ignoring duplicate join", controllerUid);
 			return;
 		}

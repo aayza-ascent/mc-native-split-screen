@@ -13,10 +13,10 @@ import java.util.Set;
  * guarded by {@link #available()} so {@link ControlifyCompat} (and the Controlify classes it
  * references) is only classloaded when Controlify is present.
  *
- * <p>Current model: {@code /couchcoop add} auto-assigns the next connected, unassigned
- * controller to the new player. A "press Start on an unassigned pad to join" poll is a
- * follow-up; it needs Controlify's per-controller input/binding API and is best validated
- * alongside spike S1.
+ * <p>Players join by pressing Start on a controller (see {@code JoinGesturePoll}); the host's
+ * own pad and its duplicate macOS enumerations are excluded by device GUID inside
+ * {@link ControlifyCompat#startJustPressed(Set)}. "Add Player" on the Join screen adds a
+ * keyboard player instead (no controller).
  */
 public final class ControllerAssigner {
 	private static final String CONTROLIFY = "controlify";
@@ -30,8 +30,9 @@ public final class ControllerAssigner {
 
 	public static void init() {
 		if (available()) {
-			NSplit.LOG.info("[host] Controlify detected — controllers auto-assign on /couchcoop add. "
-					+ "Use DIFFERENT controller models per player; identical pads share a UID (plan R2).");
+			NSplit.LOG.info("[host] Controlify detected — press Start on a NEW controller to join "
+					+ "(your own pad and its macOS duplicate enumerations are excluded by GUID). "
+					+ "Use different controller models per player.");
 		} else {
 			NSplit.LOG.info("[host] Controlify not installed — controller assignment disabled.");
 		}
@@ -42,19 +43,6 @@ public final class ControllerAssigner {
 		if (available()) {
 			ControlifyCompat.enableBackgroundInput();
 		}
-	}
-
-	/** Next connected controller UID not in {@code assigned}, if Controlify is present. */
-	public static Optional<String> pickUnassigned(Set<String> assigned) {
-		if (!available()) {
-			return Optional.empty();
-		}
-		Optional<String> uid = ControlifyCompat.firstUnassignedUid(assigned);
-		uid.ifPresent(u -> NSplit.LOG.info("[host] assigning controller {} ({})", u, ControlifyCompat.nameOf(u)));
-		if (uid.isEmpty()) {
-			NSplit.LOG.warn("[host] no unassigned controller connected — player will spawn without a pad.");
-		}
-		return uid;
 	}
 
 	/** UID of the host's own active controller, if any (excluded from join detection). */

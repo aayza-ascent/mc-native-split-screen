@@ -2,13 +2,13 @@ package io.ascent.nsplit.controller.compat;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.controller.ControllerEntity;
-import dev.isxander.controlify.controller.input.ControllerStateView;
 import dev.isxander.controlify.controller.input.GamepadInputs;
 import dev.isxander.controlify.controller.input.InputComponent;
 import dev.isxander.controlify.controllermanager.ControllerManager;
 import io.ascent.nsplit.NSplit;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,14 +39,8 @@ public final class ControlifyCompat {
 		}
 	}
 
-	/** First connected controller UID not already in {@code assigned}, if any. */
-	public static Optional<String> firstUnassignedUid(Set<String> assigned) {
-		return manager().stream()
-				.flatMap(m -> m.getConnectedControllers().stream())
-				.map(ControllerEntity::uid)
-				.filter(uid -> !assigned.contains(uid))
-				.findFirst();
-	}
+	/** UIDs present on the previous join poll — debounces freshly-(re)appeared phantom enumerations. */
+	private static volatile Set<String> seenLastPoll = Set.of();
 
 	/** Human-readable controller name for logging (falls back to the UID). */
 	public static String nameOf(String uid) {
@@ -85,30 +79,78 @@ public final class ControlifyCompat {
 	}
 
 	/**
-	 * UIDs of connected controllers (excluding {@code excluded}) whose START button went down
-	 * this tick (rising edge) — the "press Start to join" gesture. Compares Controlify's
-	 * current vs previous state view.
+	 * "Press Start to join": UIDs of connected controllers that are genuinely NEW physical
+	 * devices (not the host's pad, not an already-assigned device, not a duplicate enumeration)
+	 * and whose START button went down this tick.
+	 *
+	 * <p>macOS enumerates one physical pad under several UIDs (MFI + HIDAPI, and a fresh UID per
+	 * re-plug), so excluding only assigned UIDs lets the host's own pad spawn phantom players.
+	 * We therefore exclude by device GUID (the host's current controller + every assigned
+	 * controller), debounce controllers absent last poll (their previous-state is garbage),
+	 * dedupe per GUID, and ignore any candidate while the host is itself holding START (the same
+	 * physical press mirrored onto a duplicate enumeration).
 	 */
-	public static List<String> startJustPressed(Set<String> excluded) {
+	public static List<String> startJustPressed(Set<String> assignedUids) {
+		ControllerManager mgr = manager().orElse(null);
+		if (mgr == null) {
+			seenLastPoll = Set.of();
+			return List.of();
+		}
+		List<ControllerEntity> controllers = mgr.getConnectedControllers();
+		Set<String> excludedGuids = excludedGuids(controllers, assignedUids);
+		boolean hostHoldingStart = currentControllerStartDown();
+
+		Set<String> nowSeen = new HashSet<>();
+		Set<String> firedGuids = new HashSet<>();
 		List<String> out = new ArrayList<>();
-		List<ControllerEntity> controllers = manager()
-				.map(ControllerManager::getConnectedControllers)
-				.orElse(List.of());
 		for (ControllerEntity c : controllers) {
-			if (excluded.contains(c.uid())) {
+			String uid = c.uid();
+			nowSeen.add(uid);
+			if (assignedUids.contains(uid) || excludedGuids.contains(c.guid())) {
 				continue;
+			}
+			if (!seenLastPoll.contains(uid) || firedGuids.contains(c.guid())) {
+				continue; // debounce freshly-appeared / duplicate enumerations
 			}
 			Optional<InputComponent> input = c.input();
 			if (input.isEmpty()) {
 				continue;
 			}
-			ControllerStateView now = input.get().stateNow();
-			ControllerStateView then = input.get().stateThen();
-			if (now.isButtonDown(GamepadInputs.START_BUTTON) && !then.isButtonDown(GamepadInputs.START_BUTTON)) {
-				out.add(c.uid());
+			boolean rising = input.get().stateNow().isButtonDown(GamepadInputs.START_BUTTON)
+					&& !input.get().stateThen().isButtonDown(GamepadInputs.START_BUTTON);
+			if (rising && !hostHoldingStart) {
+				out.add(uid);
+				firedGuids.add(c.guid());
 			}
 		}
+		seenLastPoll = nowSeen;
 		return out;
+	}
+
+	/** GUIDs that must not join: the host's current controller plus every assigned controller. */
+	private static Set<String> excludedGuids(List<ControllerEntity> controllers, Set<String> assignedUids) {
+		Set<String> guids = new HashSet<>();
+		try {
+			Controlify.instance().getCurrentController().ifPresent(c -> guids.add(c.guid()));
+		} catch (Throwable ignored) {
+		}
+		for (ControllerEntity c : controllers) {
+			if (assignedUids.contains(c.uid())) {
+				guids.add(c.guid());
+			}
+		}
+		return guids;
+	}
+
+	private static boolean currentControllerStartDown() {
+		try {
+			return Controlify.instance().getCurrentController()
+					.flatMap(ControllerEntity::input)
+					.map(in -> in.stateNow().isButtonDown(GamepadInputs.START_BUTTON))
+					.orElse(false);
+		} catch (Throwable t) {
+			return false;
+		}
 	}
 
 	/** Binds this instance's active controller to {@code uid}. Returns true on success. */
