@@ -1,5 +1,6 @@
 package io.ascent.nsplit.host;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.ascent.nsplit.NSplit;
 import io.ascent.nsplit.client.screen.CouchCoopScreen;
@@ -7,6 +8,7 @@ import io.ascent.nsplit.launch.ChildSpec;
 import io.ascent.nsplit.launch.GameDirManager;
 import io.ascent.nsplit.launch.InstanceLauncher;
 import io.ascent.nsplit.window.TileLayout;
+import io.ascent.nsplit.window.WindowTiler;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.minecraft.client.MinecraftClient;
@@ -56,7 +58,23 @@ public final class CouchCoopCommands {
 						.then(ClientCommandManager.literal("dryrun").executes(ctx -> {
 							dryrun(ctx.getSource()::sendFeedback);
 							return 1;
-						}))));
+						}))
+						.then(ClientCommandManager.literal("displays").executes(ctx -> {
+							displays(ctx.getSource()::sendFeedback);
+							return 1;
+						}))
+						.then(ClientCommandManager.literal("monitor")
+								.then(ClientCommandManager.argument("player", IntegerArgumentType.integer(1, NSplit.MAX_PLAYERS))
+										.then(ClientCommandManager.argument("display", IntegerArgumentType.integer(0, 15))
+												.executes(ctx -> {
+													int player = IntegerArgumentType.getInteger(ctx, "player");
+													int display = IntegerArgumentType.getInteger(ctx, "display");
+													SessionCoordinator.get().setPlayerMonitor(player, display);
+													ctx.getSource().sendFeedback(Text.literal(
+															"[NativeSplit] Player " + player + " -> display " + display
+																	+ " (use the Per Display layout to apply)."));
+													return 1;
+												}))))));
 	}
 
 	@FunctionalInterface
@@ -101,6 +119,18 @@ public final class CouchCoopCommands {
 			NSplit.LOG.info("[host] dryrun launch command written to {}", out);
 		} catch (Exception e) {
 			fb.send(Text.literal("[NativeSplit] dryrun failed: " + e.getMessage()));
+		}
+	}
+
+	private static void displays(Feedback fb) {
+		List<String> names = WindowTiler.monitorNames();
+		if (names.isEmpty()) {
+			fb.send(Text.literal("[NativeSplit] No displays detected."));
+			return;
+		}
+		fb.send(Text.literal("[NativeSplit] Displays (use /couchcoop monitor <player> <index>):"));
+		for (int i = 0; i < names.size(); i++) {
+			fb.send(Text.literal("  " + i + ": " + names.get(i)));
 		}
 	}
 

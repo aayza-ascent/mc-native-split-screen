@@ -14,6 +14,7 @@ import net.minecraft.client.MinecraftClient;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,8 @@ public final class SessionCoordinator {
 	private String hostControllerUid;
 	private TileLayout layout = TileLayout.HORIZONTAL;
 	private final Map<UUID, ChildHandle> children = new LinkedHashMap<>();
+	/** Per-player (1-based slot) -> monitor index for the Per-Display layout. Default: slot N -> monitor N-1. */
+	private final Map<Integer, Integer> slotMonitor = new HashMap<>();
 
 	private SessionCoordinator() {
 	}
@@ -104,6 +107,7 @@ public final class SessionCoordinator {
 		hostControllerUid = null;
 		HostState.offlineLanRequested = false;
 		children.clear();
+		slotMonitor.clear();
 		if (ipc != null) {
 			ipc.close();
 			ipc = null;
@@ -206,7 +210,19 @@ public final class SessionCoordinator {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		mc.execute(() -> {
 			int count = order.size() + 1;
-			WindowTiler.Rect[] tiles = WindowTiler.computeTiles(count, lay, WindowTiler.primaryWorkArea());
+			WindowTiler.Rect[] tiles = null;
+			if (lay == TileLayout.PER_DISPLAY && WindowTiler.monitorCount() >= count) {
+				int[] perSlot = new int[count];
+				for (int i = 0; i < count; i++) {
+					perSlot[i] = getPlayerMonitor(i + 1); // slot i+1 -> its assigned monitor
+				}
+				tiles = WindowTiler.monitorRects(perSlot);
+			}
+			if (tiles == null) {
+				// Not Per-Display, or not enough monitors — tile the primary display instead.
+				TileLayout fallback = (lay == TileLayout.PER_DISPLAY) ? TileLayout.GRID : lay;
+				tiles = WindowTiler.computeTiles(count, fallback, WindowTiler.primaryWorkArea());
+			}
 			WindowTiler.apply(mc.getWindow().getHandle(), tiles[0]); // host occupies slot 1
 			IpcServer server = ipc;
 			for (int i = 0; i < order.size() && i + 1 < tiles.length; i++) {
@@ -223,6 +239,18 @@ public final class SessionCoordinator {
 
 	public synchronized void setLayout(TileLayout layout) {
 		this.layout = layout;
+		retile();
+	}
+
+	/** Monitor index assigned to a player slot (1-based); defaults to slot-1 (P1->monitor 0). */
+	public synchronized int getPlayerMonitor(int slot) {
+		return slotMonitor.getOrDefault(slot, slot - 1);
+	}
+
+	/** Assign a player slot (1-based) to a monitor index, and retile live. */
+	public synchronized void setPlayerMonitor(int slot, int monitorIndex) {
+		slotMonitor.put(slot, monitorIndex);
+		NSplit.LOG.info("[host] player {} -> monitor {}", slot, monitorIndex);
 		retile();
 	}
 }

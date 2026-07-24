@@ -1,11 +1,14 @@
 package io.ascent.nsplit.window;
 
 import io.ascent.nsplit.NSplit;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Computes split-screen tile rectangles and positions borderless GLFW windows into them.
@@ -72,6 +75,54 @@ public final class WindowTiler {
 					new Rect(ax, ay + ah / 2, aw / 2, ah - ah / 2),
 					new Rect(ax + aw / 2, ay + ah / 2, aw - aw / 2, ah - ah / 2)};
 		};
+	}
+
+	/** Number of connected monitors (>= 1). Render-thread only. */
+	public static int monitorCount() {
+		PointerBuffer monitors = GLFW.glfwGetMonitors();
+		return monitors == null ? 1 : Math.max(1, monitors.limit());
+	}
+
+	/** Connected monitor names (index-aligned with the monitor indices used elsewhere). */
+	public static List<String> monitorNames() {
+		PointerBuffer monitors = GLFW.glfwGetMonitors();
+		List<String> names = new ArrayList<>();
+		if (monitors == null) {
+			return names;
+		}
+		for (int i = 0; i < monitors.limit(); i++) {
+			String nm = GLFW.glfwGetMonitorName(monitors.get(i));
+			names.add(nm != null && !nm.isBlank() ? nm : ("Display " + (i + 1)));
+		}
+		return names;
+	}
+
+	/**
+	 * Full-monitor rectangle per player for the "Per Display" layout, where
+	 * {@code monitorIndexPerSlot[i]} is the monitor assigned to slot i (clamped to the available
+	 * range). Logical points via each monitor's work area; {@code null} if monitors can't be
+	 * enumerated. Render-thread only.
+	 */
+	public static Rect[] monitorRects(int[] monitorIndexPerSlot) {
+		PointerBuffer monitors = GLFW.glfwGetMonitors();
+		if (monitors == null || monitors.limit() == 0) {
+			return null;
+		}
+		int n = monitors.limit();
+		Rect[] out = new Rect[monitorIndexPerSlot.length];
+		for (int i = 0; i < out.length; i++) {
+			int mi = Math.max(0, Math.min(monitorIndexPerSlot[i], n - 1));
+			long mon = monitors.get(mi);
+			try (MemoryStack stack = MemoryStack.stackPush()) {
+				IntBuffer x = stack.mallocInt(1);
+				IntBuffer y = stack.mallocInt(1);
+				IntBuffer w = stack.mallocInt(1);
+				IntBuffer h = stack.mallocInt(1);
+				GLFW.glfwGetMonitorWorkarea(mon, x, y, w, h);
+				out[i] = new Rect(x.get(0), y.get(0), w.get(0), h.get(0));
+			}
+		}
+		return out;
 	}
 
 	/**

@@ -7,5 +7,8 @@ public enum TileLayout {
 	/** 2 players side-by-side left/right; falls back to grid for 3–4. */
 	VERTICAL,
 	/** Quadrant grid (3 = two-top + one-bottom, 4 = quadrants). */
-	GRID
+	GRID,
+	/** One player per physical monitor, fullscreen (e.g. P1 on the monitor, P2 on the TV).
+	 *  Falls back to {@link #GRID} on the primary display if there aren't enough monitors. */
+	PER_DISPLAY
 }
